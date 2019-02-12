@@ -1,7 +1,11 @@
 package main
 
 import (
-	"fmt"
+	"net/http"
+
+	"encoding/json"
+
+	"log"
 
 	"github.com/valentyn88/players_finder/client"
 	"github.com/valentyn88/players_finder/storage"
@@ -10,6 +14,7 @@ import (
 const countGoroutines = 10
 
 func main() {
+
 	tData := map[string]struct{}{
 		"Germany":           struct{}{},
 		"England":           struct{}{},
@@ -43,13 +48,6 @@ func main() {
 				break
 			}
 
-			//if i == 100 {
-			//	log.Printf("We didn't find %d\n", teamStorage.Len())
-			//	close(idsCh)
-			//	close(done)
-			//	break
-			//}
-
 			idsCh <- i
 			i++
 		}
@@ -58,7 +56,24 @@ func main() {
 	<-done
 
 	sortedPlayers := playerStorage.SortedByNameList()
-	for _, player := range sortedPlayers {
-		fmt.Println(player)
+
+	h := handler{players: sortedPlayers}
+	http.HandleFunc("/players", h.playersHandler)
+
+	if err := http.ListenAndServe(":7008", nil); err != nil {
+		log.Fatal(err)
 	}
+}
+
+type handler struct {
+	players []storage.Player
+}
+
+func (h handler) playersHandler(w http.ResponseWriter, _ *http.Request) {
+	pp, err := json.Marshal(h.players)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Write(pp)
 }

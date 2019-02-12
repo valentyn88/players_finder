@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/pkg/errors"
 	"github.com/valentyn88/players_finder/storage"
 )
 
@@ -36,7 +37,7 @@ type Player struct {
 }
 
 // GetTeam get team
-func GetTeam(done chan struct{}, idsCh chan int, teamStorage storage.Team, playerStorage storage.Storage) {
+func GetTeam(done chan struct{}, idsCh chan int, reqURL string, teamStorage storage.Team, playerStorage storage.Storage) {
 	for {
 		select {
 		case id, ok := <-idsCh:
@@ -44,32 +45,15 @@ func GetTeam(done chan struct{}, idsCh chan int, teamStorage storage.Team, playe
 				return
 			}
 
-			resp, err := http.Get(fmt.Sprintf("https://vintagemonster.onefootball.com/api/teams/en/%s.json", strconv.Itoa(id)))
+			resp, err := http.Get(fmt.Sprintf(reqURL, strconv.Itoa(id)))
 			if err != nil {
 				log.Printf("couldn't get response error: %s\n", err.Error())
 				continue
 			}
 
-			defer func() {
-				if err = resp.Body.Close(); err != nil {
-					log.Println(err.Error())
-				}
-			}()
-
-			if resp.StatusCode != http.StatusOK {
-				continue
-			}
-
-			content, err := ioutil.ReadAll(resp.Body)
+			r, err := getResponse(resp)
 			if err != nil {
-				log.Printf("couldn't read response body error: %s\n", err.Error())
-				continue
-			}
-
-			var r Response
-			if err := json.Unmarshal(content, &r); err != nil {
-				log.Printf("couldn't unmarshal response error: %s\n", err.Error())
-				continue
+				log.Println(err.Error())
 			}
 
 			if !teamStorage.Find(r.Data.Team.Name) {
@@ -86,4 +70,32 @@ func GetTeam(done chan struct{}, idsCh chan int, teamStorage storage.Team, playe
 			return
 		}
 	}
+}
+
+func getResponse(resp *http.Response) (Response, error) {
+	var (
+		err error
+		r   Response
+	)
+
+	defer func() {
+		if err = resp.Body.Close(); err != nil {
+			log.Println(err.Error())
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return r, errors.New("Status is not 200")
+	}
+
+	content, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return r, errors.Errorf("couldn't read response body error: %s\n", err.Error())
+	}
+
+	if err := json.Unmarshal(content, &r); err != nil {
+		return r, errors.Errorf("couldn't unmarshal response error: %s\n", err.Error())
+	}
+
+	return r, nil
 }

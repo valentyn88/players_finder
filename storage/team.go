@@ -25,8 +25,8 @@ func (t *Team) Remove(team string) {
 
 // Find find team by key
 func (t *Team) Find(team string) bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
 	_, ok := t.data[team]
 
@@ -35,8 +35,8 @@ func (t *Team) Find(team string) bool {
 
 // Len length of teams
 func (t *Team) Len() int {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
 	return len(t.data)
 }
